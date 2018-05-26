@@ -26,6 +26,7 @@ from tensorflow.python.training import ftrl
 from tensorflow.python.training import gradient_descent
 from tensorflow.python.training import optimizer as optimizer_lib
 from tensorflow.python.training import rmsprop
+from tensorflow.python.training import sdprop
 
 
 class GetOptimizerInstance(test.TestCase):
@@ -58,6 +59,11 @@ class GetOptimizerInstance(test.TestCase):
   def test_rmsprop(self):
     opt = optimizers.get_optimizer_instance('RMSProp', learning_rate=0.1)
     self.assertIsInstance(opt, rmsprop.RMSPropOptimizer)
+    self.assertAlmostEqual(0.1, opt._learning_rate)
+
+  def test_sdprop(self):
+    opt = optimizers.get_optimizer_instance('SDProp', learning_rate=0.1)
+    self.assertIsInstance(opt, sdprop.SDPropOptimizer)
     self.assertAlmostEqual(0.1, opt._learning_rate)
 
   def test_sgd(self):

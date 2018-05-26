@@ -26,6 +26,7 @@ from tensorflow.python.keras._impl.keras.optimizers import Adamax
 from tensorflow.python.keras._impl.keras.optimizers import Nadam
 from tensorflow.python.keras._impl.keras.optimizers import Optimizer
 from tensorflow.python.keras._impl.keras.optimizers import RMSprop
+from tensorflow.python.keras._impl.keras.optimizers import SDprop
 from tensorflow.python.keras._impl.keras.optimizers import SGD
 
 # Auxiliary utils.

@@ -27,6 +27,7 @@ from tensorflow.python.training import ftrl
 from tensorflow.python.training import gradient_descent
 from tensorflow.python.training import optimizer as optimizer_lib
 from tensorflow.python.training import rmsprop
+from tensorflow.python.training import sdprop
 
 
 _OPTIMIZER_CLS_NAMES = {
@@ -35,6 +36,7 @@ _OPTIMIZER_CLS_NAMES = {
     'Ftrl': ftrl.FtrlOptimizer,
     'RMSProp': rmsprop.RMSPropOptimizer,
     'SGD': gradient_descent.GradientDescentOptimizer,
+    'SDProp': sdprop.SDPropOptimizer,
 }
 
 
@@ -49,6 +51,7 @@ def get_optimizer_instance(opt, learning_rate=None):
     * 'Adam': Returns an `AdamOptimizer`.
     * 'Ftrl': Returns an `FtrlOptimizer`.
     * 'RMSProp': Returns an `RMSPropOptimizer`.
+    * 'SDProp': Returns an `SDPropOptimizer`.
     * 'SGD': Returns a `GradientDescentOptimizer`.
 
   Args:

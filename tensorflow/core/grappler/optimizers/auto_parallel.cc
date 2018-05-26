@@ -109,7 +109,8 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
                                                 "ApplyMomentum",
                                                 "ApplyAdam",
                                                 "ApplyRMSProp",
-                                                "ApplyCenteredRMSProp"};
+                                                "ApplyCenteredRMSProp",
+                                                "ApplySDProp"};
   for (int i = 0; i < graph_.node_size(); i++) {
     all_nodes_.insert(
         std::make_pair(graph_.node(i).name(), graph_.mutable_node(i)));
@@ -132,7 +133,8 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
                                         {"ApplyMomentum", 3},
                                         {"ApplyAdam", 9},
                                         {"ApplyRMSProp", 7},
-                                        {"ApplyCenteredRMSProp", 8}};
+                                        {"ApplyCenteredRMSProp", 8},
+                                        {"ApplySDProp", 7} /* 何の７？ */ };
   for (const auto& apply_gradient_node_name : apply_gradients_nodes_) {
     auto apply_gradients_op = all_nodes_[apply_gradient_node_name]->op();
     auto apply_gradients_node = all_nodes_[apply_gradient_node_name];

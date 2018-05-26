@@ -1796,4 +1796,187 @@ use_locking: If `True`, updating of the var, mg, ms, and mom tensors is
   contention.
 )doc");
 
+static Status ApplySDPropShapeFn(InferenceContext* c, bool sparse) {
+  ShapeHandle unused;
+  ShapeHandle s = ShapeOrHandleShape(c, 0);                       // var
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));  // ms
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 2), &s));  // mom
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));       // lr
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));       // rho
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));       // momentum
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 0, &unused));       // epsilon
+  TF_RETURN_IF_ERROR(
+      HandleGradAndIndicesInputs(c, sparse, 7 /* grad_idx */, &s));
+  if (c->num_outputs() > 0) {
+    c->set_output(0, s);
+  }
+  return Status::OK();
+}
+
+REGISTER_OP("ApplySDProp")
+    .Input("var: Ref(T)")
+    .Input("ms: Ref(T)")
+    .Input("mom: Ref(T)")
+    .Input("lr: T")
+    .Input("rho: T")
+    .Input("momentum: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Output("out: Ref(T)")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm (dummuy).
+Note that in dense implementation of this algorithm, ms and mom will
+update even if the grad is zero, but in this sparse implementation, ms
+and mom will not update in iterations during which the grad is zero.
+
+mean_square = decay * mean_square + (1-decay) * gradient ** 2
+Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+
+ms <- rho * ms_{t-1} + (1-rho) * grad * grad
+mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
+var <- var - mom
+
+var: Should be from a Variable().
+ms: Should be from a Variable().
+mom: Should be from a Variable().
+lr: Scaling factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+rho: Decay rate. Must be a scalar.
+grad: The gradient.
+out: Same as "var".
+use_locking: If `True`, updating of the var, ms, and mom tensors is protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+)doc");
+
+REGISTER_OP("SparseApplySDProp")
+    .Input("var: Ref(T)")
+    .Input("ms: Ref(T)")
+    .Input("mom: Ref(T)")
+    .Input("lr: T")
+    .Input("rho: T")
+    .Input("momentum: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Input("indices: Tindices")
+    .Output("out: Ref(T)")
+    .Attr("T: numbertype")
+    .Attr("Tindices: {int32, int64}")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, true /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm (dummy).
+Note that in dense implementation of this algorithm, ms and mom will
+update even if the grad is zero, but in this sparse implementation, ms
+and mom will not update in iterations during which the grad is zero.
+
+mean_square = decay * mean_square + (1-decay) * gradient ** 2
+Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+
+ms <- rho * ms_{t-1} + (1-rho) * grad * grad
+mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
+var <- var - mom
+
+var: Should be from a Variable().
+ms: Should be from a Variable().
+mom: Should be from a Variable().
+lr: Scaling factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+rho: Decay rate. Must be a scalar.
+grad: The gradient.
+indices: A vector of indices into the first dimension of var, ms and mom.
+out: Same as "var".
+use_locking: If `True`, updating of the var, ms, and mom tensors is protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+)doc");
+
+REGISTER_OP("ResourceApplySDProp")
+    .Input("var: resource")
+    .Input("ms: resource")
+    .Input("mom: resource")
+    .Input("lr: T")
+    .Input("rho: T")
+    .Input("momentum: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm (dummy).
+Note that in dense implementation of this algorithm, ms and mom will
+update even if the grad is zero, but in this sparse implementation, ms
+and mom will not update in iterations during which the grad is zero.
+
+mean_square = decay * mean_square + (1-decay) * gradient ** 2
+Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+
+ms <- rho * ms_{t-1} + (1-rho) * grad * grad
+mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
+var <- var - mom
+
+var: Should be from a Variable().
+ms: Should be from a Variable().
+mom: Should be from a Variable().
+lr: Scaling factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+rho: Decay rate. Must be a scalar.
+grad: The gradient.
+use_locking: If `True`, updating of the var, ms, and mom tensors is protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+)doc");
+
+REGISTER_OP("ResourceSparseApplySDProp")
+    .Input("var: resource")
+    .Input("ms: resource")
+    .Input("mom: resource")
+    .Input("lr: T")
+    .Input("rho: T")
+    .Input("momentum: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Input("indices: Tindices")
+    .Attr("T: numbertype")
+    .Attr("Tindices: {int32, int64}")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, true /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm (dummy).
+Note that in dense implementation of this algorithm, ms and mom will
+update even if the grad is zero, but in this sparse implementation, ms
+and mom will not update in iterations during which the grad is zero.
+
+mean_square = decay * mean_square + (1-decay) * gradient ** 2
+Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+
+ms <- rho * ms_{t-1} + (1-rho) * grad * grad
+mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
+var <- var - mom
+
+var: Should be from a Variable().
+ms: Should be from a Variable().
+mom: Should be from a Variable().
+lr: Scaling factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+rho: Decay rate. Must be a scalar.
+grad: The gradient.
+indices: A vector of indices into the first dimension of var, ms and mom.
+use_locking: If `True`, updating of the var, ms, and mom tensors is protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+)doc");
+
 }  // namespace tensorflow

@@ -109,6 +109,11 @@ class KerasOptimizersTest(test.TestCase):
     with self.test_session():
       _test_optimizer(keras.optimizers.Nadam())
 
+  def test_sdprop(self):
+    with self.test_session():
+      _test_optimizer(keras.optimizers.SDprop())
+      _test_optimizer(keras.optimizers.SDprop(decay=1e-3))
+
   def test_clipnorm(self):
     with self.test_session():
       _test_optimizer(keras.optimizers.SGD(lr=0.01,

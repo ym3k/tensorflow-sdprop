@@ -688,6 +688,68 @@ class TFOptimizer(Optimizer):
   def from_config(self, config):
     raise NotImplementedError
 
+class SDprop(Optimizer):
+  """SDProp optimizer (dummy).
+
+  It is recommended to leave the parameters of this optimizer
+  at their default values
+  (except the learning rate, which can be freely tuned).
+
+  This optimizer is usually a good choice for recurrent
+  neural networks.
+
+  Arguments:
+      lr: float >= 0. Learning rate.
+      rho: float >= 0.
+      epsilon: float >= 0. Fuzz factor.
+      decay: float >= 0. Learning rate decay over each update.
+  """
+
+  def __init__(self, lr=0.001, rho=0.9, epsilon=1e-8, decay=0., **kwargs):
+    super(SDprop, self).__init__(**kwargs)
+    with K.name_scope(self.__class__.__name__):
+      self.lr = K.variable(lr, name='lr')
+      self.rho = K.variable(rho, name='rho')
+      self.decay = K.variable(decay, name='decay')
+      self.iterations = K.variable(0, dtype='int64', name='iterations')
+    self.epsilon = epsilon
+    self.initial_decay = decay
+
+  def get_updates(self, loss, params):
+    grads = self.get_gradients(loss, params)
+    accumulators = [
+        K.zeros(K.int_shape(p), dtype=K.dtype(p)) for p in params
+    ]
+    self.weights = accumulators
+    self.updates = [K.update_add(self.iterations, 1)]
+
+    lr = self.lr
+    if self.initial_decay > 0:
+      lr *= (1. / (1. + self.decay * K.cast(self.iterations,
+                                            K.dtype(self.decay))))
+
+    for p, g, a in zip(params, grads, accumulators):
+      # update accumulator
+      new_a = self.rho * a + (1. - self.rho) * K.square(g)
+      self.updates.append(K.update(a, new_a))
+      new_p = p - lr * g / (K.sqrt(new_a) + self.epsilon)
+
+      # Apply constraints.
+      if getattr(p, 'constraint', None) is not None:
+        new_p = p.constraint(new_p)
+
+      self.updates.append(K.update(p, new_p))
+    return self.updates
+
+  def get_config(self):
+    config = {
+        'lr': float(K.get_value(self.lr)),
+        'rho': float(K.get_value(self.rho)),
+        'decay': float(K.get_value(self.decay)),
+        'epsilon': self.epsilon
+    }
+    base_config = super(SDprop, self).get_config()
+    return dict(list(base_config.items()) + list(config.items()))
 
 # Aliases.
 
@@ -699,6 +761,7 @@ adadelta = Adadelta
 adam = Adam
 adamax = Adamax
 nadam = Nadam
+sdprop = SDprop
 
 # pylint: enable=invalid-name
 
@@ -728,6 +791,7 @@ def deserialize(config, custom_objects=None):
       'adam': Adam,
       'adamax': Adamax,
       'nadam': Nadam,
+      'sdprop': SDprop,
       'tfoptimizer': TFOptimizer,
   }
   # Make deserialization case-insensitive for built-in optimizers.
