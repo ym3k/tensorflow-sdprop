@@ -134,7 +134,7 @@ Status AutoParallel::Initialize(const GrapplerItem& item) {
                                         {"ApplyAdam", 9},
                                         {"ApplyRMSProp", 7},
                                         {"ApplyCenteredRMSProp", 8},
-                                        {"ApplySDProp", 7} /* 何の７？ */ };
+                                        {"ApplySDProp", 6} /* 引数の数６？ */ };
   for (const auto& apply_gradient_node_name : apply_gradients_nodes_) {
     auto apply_gradients_op = all_nodes_[apply_gradient_node_name]->op();
     auto apply_gradients_node = all_nodes_[apply_gradient_node_name];

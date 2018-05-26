@@ -196,24 +196,31 @@ struct ApplyCenteredRMSProp<GPUDevice, T> {
 template <typename T>
 struct ApplySDProp<GPUDevice, T> {
   void operator()(const GPUDevice& d, typename TTypes<T>::Flat var,
-                  typename TTypes<T>::Flat ms, typename TTypes<T>::Flat mom,
+                  typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,
                   typename TTypes<T>::ConstScalar lr,
-                  typename TTypes<T>::ConstScalar rho,
-                  typename TTypes<T>::ConstScalar momentum,
+                  typename TTypes<T>::ConstScalar gamma,
+//                  typename TTypes<T>::ConstScalar momentum,
                   typename TTypes<T>::ConstScalar epsilon,
                   typename TTypes<T>::ConstFlat grad) {
     Eigen::array<typename TTypes<T>::Tensor::Index, 1> bcast;
     bcast[0] = grad.dimension(0);
     Eigen::Sizes<1> single;
     const auto one = static_cast<T>(1.0);
-    ms.device(d) = ms +
-                   (rho.constant(one) - rho).reshape(single).broadcast(bcast) *
-                       (grad.square() - ms);
+    // ms.device(d) = ms +
+    //                (rho.constant(one) - rho).reshape(single).broadcast(bcast) *
+    //                    (grad.square() - ms);
+    mu.device(d) = (gamma * mu) + 
+        (gamma.constant(one) - gamma).reshape(single).broadcast(bcast) * grad;
+    // mom.device(d) =
+    //     mom * momentum.reshape(single).broadcast(bcast) +
+    //     lr.reshape(single).broadcast(bcast) * grad /
+    //         ((epsilon.reshape(single).broadcast(bcast) + ms).sqrt());
     mom.device(d) =
-        mom * momentum.reshape(single).broadcast(bcast) +
-        lr.reshape(single).broadcast(bcast) * grad /
-            ((epsilon.reshape(single).broadcast(bcast) + ms).sqrt());
-    var.device(d) -= mom;
+        gamma * ( mom + (gamma.constant(one) - gamma).reshape(single).broadcast(bcast) * 
+          ((grad - mu).square())) ;
+    // var.device(d) -= mom;
+    var.device(d) -= lr.reshape(single).broadcast(bcast) * 
+        grad / ((mom + epsilon.reshape(single).broadcast(bcast)).sqrt()) ;
   }
 };
 

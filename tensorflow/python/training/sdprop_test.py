@@ -37,15 +37,15 @@ from tensorflow.python.training import sdprop
 _DATA_TYPES = [dtypes.half, dtypes.float32]
 
 _TEST_PARAM_VALUES = [
-    # learning_rate, decay, momentum, epsilon, centered, use_resource
-    [0.5, 0.9, 0.0, 1e-3, True, False],
-    [0.5, 0.9, 0.0, 1e-3, False, False],
-    [0.5, 0.9, 0.0, 1e-3, True, True],
-    [0.5, 0.9, 0.0, 1e-3, False, True],
-    [0.1, 0.9, 0.0, 1e-3, True, False],
-    [0.5, 0.95, 0.0, 1e-3, False, False],
-    [0.5, 0.95, 0.0, 1e-5, True, False],
-    [0.5, 0.95, 0.9, 1e-5, True, False],
+    # learning_rate, gamma, epsilon, use_resource
+    [0.5, 0.9, 1e-3, False],
+    [0.5, 0.9, 1e-3, False],
+    [0.5, 0.9, 1e-3, True],
+    [0.5, 0.9, 1e-3, True],
+    [0.1, 0.9, 1e-3, False],
+    [0.5, 0.95, 1e-3, False],
+    [0.5, 0.95, 1e-5, False],
+    [0.5, 0.95, 1e-5, False],
 ]
 
 _TESTPARAMS = [
@@ -56,21 +56,17 @@ _TESTPARAMS = [
 
 class SDPropOptimizerTest(test.TestCase):
 
-  def _sdprop_update_numpy(self, var, g, mg, sd, mom, lr, decay, momentum,
-                            epsilon, centered):
+  def _sdprop_update_numpy(self, var, g, mg, sd, mom, lr, gamma,
+                            epsilon):
     sd_t = sd * decay + (1 - decay) * g * g
     denom_t = sd_t + epsilon
-    if centered:
-      mg_t = mg * decay + (1 - decay) * g
-      denom_t -= mg_t * mg_t
-    else:
-      mg_t = mg
+    mg_t = mg
     mom_t = momentum * mom + lr * g / np.sqrt(denom_t, dtype=denom_t.dtype)
     var_t = var - mom_t
     return var_t, mg_t, sd_t, mom_t
 
   def _sparse_sdprop_update_numpy(self, var, gindexs, gvalues, mg, sd, mom,
-                                   lr, decay, momentum, epsilon, centered):
+                                   lr, gamma, epsilon):
     mg_t = copy.deepcopy(mg)
     sd_t = copy.deepcopy(sd)
     mom_t = copy.deepcopy(mom)
@@ -80,17 +76,14 @@ class SDPropOptimizerTest(test.TestCase):
       gvalue = gvalues[i]
       sd_t[gindex] = sd[gindex] * decay + (1 - decay) * gvalue * gvalue
       denom_t = sd_t[gindex] + epsilon
-      if centered:
-        mg_t[gindex] = mg_t[gindex] * decay + (1 - decay) * gvalue
-        denom_t -= mg_t[gindex] * mg_t[gindex]
       mom_t[gindex] = momentum * mom[gindex] + lr * gvalue / np.sqrt(denom_t)
       var_t[gindex] = var[gindex] - mom_t[gindex]
     return var_t, mg_t, sd_t, mom_t
 
   def testDense(self):
     # TODO(yori): Use ParameterizedTest when available
-    for (dtype, learning_rate, decay, momentum,
-         epsilon, centered, use_resource) in _TESTPARAMS:
+    for (dtype, learning_rate, gamma, 
+         epsilon, use_resource) in _TESTPARAMS:
       with self.test_session(use_gpu=True):
         # Initialize variables for numpy implementation.
         var0_np = np.array([1.0, 2.0], dtype=dtype.as_numpy_dtype)
@@ -108,10 +101,8 @@ class SDPropOptimizerTest(test.TestCase):
         grads1 = constant_op.constant(grads1_np)
         opt = sdprop.SDPropOptimizer(
             learning_rate=learning_rate,
-            decay=decay,
-            momentum=momentum,
-            epsilon=epsilon,
-            centered=centered)
+            gamma=gamma,
+            epsilon=epsilon)
 
         update = opt.apply_gradients(zip([grads0, grads1], [var0, var1]))
         variables.global_variables_initializer().run()
@@ -124,17 +115,17 @@ class SDPropOptimizerTest(test.TestCase):
         self.assertTrue(sd0 is not None)
         sd1 = opt.get_slot(var1, "sd")
         self.assertTrue(sd1 is not None)
-        mom0 = opt.get_slot(var0, "momentum")
-        self.assertTrue(mom0 is not None)
-        mom1 = opt.get_slot(var1, "momentum")
-        self.assertTrue(mom1 is not None)
+        # mom0 = opt.get_slot(var0, "momentum")
+        # self.assertTrue(mom0 is not None)
+        # mom1 = opt.get_slot(var1, "momentum")
+        # self.assertTrue(mom1 is not None)
 
         mg0_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
         mg1_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
         sd0_np = np.array([1.0, 1.0], dtype=dtype.as_numpy_dtype)
         sd1_np = np.array([1.0, 1.0], dtype=dtype.as_numpy_dtype)
-        mom0_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
-        mom1_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
+        # mom0_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
+        # mom1_np = np.array([0.0, 0.0], dtype=dtype.as_numpy_dtype)
 
         # Fetch params to validate initial values
         self.assertAllClose([1.0, 2.0], var0.eval())

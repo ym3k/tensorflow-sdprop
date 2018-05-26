@@ -361,19 +361,21 @@ struct ApplyCenteredRMSProp<CPUDevice, T> {
   }
 };
 
+//////// SDProp ////////
 template <typename T>
 struct ApplySDProp<CPUDevice, T> {
   void operator()(const CPUDevice& d, typename TTypes<T>::Flat var,
-                  typename TTypes<T>::Flat ms, typename TTypes<T>::Flat mom,
+                  typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,
                   typename TTypes<T>::ConstScalar lr,
-                  typename TTypes<T>::ConstScalar rho,
-                  typename TTypes<T>::ConstScalar momentum,
+                  typename TTypes<T>::ConstScalar gamma,
+                  //typename TTypes<T>::ConstScalar momentum,
                   typename TTypes<T>::ConstScalar epsilon,
                   typename TTypes<T>::ConstFlat grad) {
-    ms.device(d) += (grad.square() - ms) * (static_cast<T>(1) - rho());
+    mu.device(d) = (gamma() * mu) + (static_cast<T>(1) - gamma()) * grad;
     mom.device(d) =
-        mom * momentum() + (grad * lr()) / ((ms + epsilon()).sqrt());
-    var.device(d) -= mom;
+        gamma() * ( mom + (static_cast<T>(1) - gamma()) * ((grad - mu).square())) ;
+//        (grad * lr()) / ((mu + epsilon()).sqrt());
+    var.device(d) -= lr() * grad / ((mom + epsilon()).sqrt()) ;
   }
 };
 
@@ -3259,6 +3261,8 @@ REGISTER_KERNELS(double, int64);
 
 #undef REGISTER_KERNELS
 
+/////////// SDProp /////////
+
 template <typename Device, typename T>
 class ApplySDPropOp : public OpKernel {
  public:
@@ -3273,9 +3277,9 @@ class ApplySDPropOp : public OpKernel {
     Tensor var;
     OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<Device, T>(
                             ctx, 0, use_exclusive_lock_, false, &var));
-    Tensor ms;
+    Tensor mu;
     OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<Device, T>(
-                            ctx, 1, use_exclusive_lock_, false, &ms));
+                            ctx, 1, use_exclusive_lock_, false, &mu));
     Tensor mom;
     OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<Device, T>(
                             ctx, 2, use_exclusive_lock_, false, &mom));
@@ -3285,7 +3289,7 @@ class ApplySDPropOp : public OpKernel {
         errors::FailedPrecondition(
             "Attempting to use uninitialized variables: ", requested_input(0)));
     OP_REQUIRES(
-        ctx, ms.IsInitialized(),
+        ctx, mu.IsInitialized(),
         errors::FailedPrecondition(
             "Attempting to use uninitialized variables: ", requested_input(1)));
     OP_REQUIRES(
@@ -3294,28 +3298,30 @@ class ApplySDPropOp : public OpKernel {
             "Attempting to use uninitialized variables: ", requested_input(2)));
 
     const Tensor& lr = ctx->input(3);
-    const Tensor& rho = ctx->input(4);
-    const Tensor& momentum = ctx->input(5);
-    const Tensor& epsilon = ctx->input(6);
-    const Tensor& grad = ctx->input(7);
+    const Tensor& gamma = ctx->input(4);
+    // const Tensor& momentum = ctx->input(5);
+    // const Tensor& epsilon = ctx->input(6);
+    // const Tensor& grad = ctx->input(7);
+    const Tensor& epsilon = ctx->input(5);
+    const Tensor& grad = ctx->input(6);
 
     OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(lr.shape()),
                 errors::InvalidArgument("lr is not a scalar : ",
                                         lr.shape().DebugString()));
-    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(rho.shape()),
-                errors::InvalidArgument("rho is not a scalar: ",
-                                        rho.shape().DebugString()));
-    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(momentum.shape()),
-                errors::InvalidArgument("momentum is not a scalar: ",
-                                        momentum.shape().DebugString()));
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(gamma.shape()),
+                errors::InvalidArgument("gamma is not a scalar: ",
+                                        gamma.shape().DebugString()));
+    // OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(momentum.shape()),
+    //             errors::InvalidArgument("momentum is not a scalar: ",
+    //                                     momentum.shape().DebugString()));
     OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(epsilon.shape()),
                 errors::InvalidArgument("epsilon is not a scalar: ",
                                         epsilon.shape().DebugString()));
 
-    OP_REQUIRES(ctx, var.shape().IsSameSize(ms.shape()),
-                errors::InvalidArgument("var and ms do not have the same shape",
+    OP_REQUIRES(ctx, var.shape().IsSameSize(mu.shape()),
+                errors::InvalidArgument("var and mu do not have the same shape",
                                         var.shape().DebugString(), " ",
-                                        ms.shape().DebugString()));
+                                        mu.shape().DebugString()));
 
     OP_REQUIRES(ctx, var.shape().IsSameSize(mom.shape()),
                 errors::InvalidArgument(
@@ -3329,9 +3335,9 @@ class ApplySDPropOp : public OpKernel {
                                 grad.shape().DebugString()));
 
     const Device& device = ctx->template eigen_device<Device>();
-    functor::ApplySDProp<Device, T>()(device, var.flat<T>(), ms.flat<T>(),
+    functor::ApplySDProp<Device, T>()(device, var.flat<T>(), mu.flat<T>(),
                                        mom.flat<T>(), lr.scalar<T>(),
-                                       rho.scalar<T>(), momentum.scalar<T>(),
+                                       gamma.scalar<T>(), //momentum.scalar<T>(),
                                        epsilon.scalar<T>(), grad.flat<T>());
 
     MaybeForwardRefInputToRefOutput(ctx, 0, 0);
@@ -3348,7 +3354,7 @@ class ApplySDPropOp : public OpKernel {
   REGISTER_KERNEL_BUILDER(Name("ResourceApplySDProp")                        \
                               .Device(DEVICE_##D)                             \
                               .HostMemory("var")                              \
-                              .HostMemory("ms")                               \
+                              .HostMemory("mu")                               \
                               .HostMemory("mom")                              \
                               .TypeConstraint<T>("T"),                        \
                           ApplySDPropOp<D##Device, T>);
@@ -3365,9 +3371,10 @@ namespace functor {
   template <>                                                                  \
   void ApplySDProp<GPUDevice, T>::operator()(                                 \
       const GPUDevice& d, typename TTypes<T>::Flat var,                        \
-      typename TTypes<T>::Flat ms, typename TTypes<T>::Flat mom,               \
-      typename TTypes<T>::ConstScalar lr, typename TTypes<T>::ConstScalar rho, \
-      typename TTypes<T>::ConstScalar momentum,                                \
+      typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,               \
+      typename TTypes<T>::ConstScalar lr,                                      \
+      typename TTypes<T>::ConstScalar gamma, \
+      /* typename TTypes<T>::ConstScalar momentum,     */                      \
       typename TTypes<T>::ConstScalar epsilon,                                 \
       typename TTypes<T>::ConstFlat grad);                                     \
   extern template struct ApplySDProp<GPUDevice, T>;
@@ -3382,6 +3389,169 @@ REGISTER_KERNELS(GPU, float);
 REGISTER_KERNELS(GPU, double);
 #endif
 #undef REGISTER_CPU_KERNELS
+#undef REGISTER_KERNELS
+
+// Note, this op works on cpu only.
+template <typename T, typename Tindex>
+class SparseApplySDPropOp : public OpKernel {
+ public:
+  explicit SparseApplySDPropOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("use_locking", &use_exclusive_lock_));
+  }
+
+  void Compute(OpKernelContext* ctx) override NO_THREAD_SAFETY_ANALYSIS {
+    auto locks = MaybeLockVariableInputMutexesInOrder(ctx, use_exclusive_lock_,
+                                                      {0, 1, 2});
+
+    Tensor var;
+    OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<CPUDevice, T>(
+                            ctx, 0, use_exclusive_lock_, true, &var));
+    Tensor mu;
+    OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<CPUDevice, T>(
+                            ctx, 1, use_exclusive_lock_, true, &mu));
+    Tensor mom;
+    OP_REQUIRES_OK(ctx, GetInputTensorFromVariable<CPUDevice, T>(
+                            ctx, 2, use_exclusive_lock_, true, &mom));
+
+    OP_REQUIRES(
+        ctx, var.IsInitialized(),
+        errors::FailedPrecondition(
+            "Attempting to use uninitialized variables: ", requested_input(0)));
+    OP_REQUIRES(
+        ctx, mu.IsInitialized(),
+        errors::FailedPrecondition(
+            "Attempting to use uninitialized variables: ", requested_input(1)));
+    OP_REQUIRES(
+        ctx, mom.IsInitialized(),
+        errors::FailedPrecondition(
+            "Attempting to use uninitialized variables: ", requested_input(2)));
+
+    const Tensor& lr = ctx->input(3);
+    const Tensor& gamma = ctx->input(4);
+    // const Tensor& rho = ctx->input(4);
+    // const Tensor& momentum = ctx->input(5);
+    // const Tensor& epsilon = ctx->input(6);
+    // const Tensor& grad = ctx->input(7);
+    // const Tensor& indices = ctx->input(8);
+    const Tensor& epsilon = ctx->input(5);
+    const Tensor& grad = ctx->input(6);
+    const Tensor& indices = ctx->input(7);
+
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(lr.shape()),
+                errors::InvalidArgument("lr is not a scalar: ",
+                                        lr.shape().DebugString()));
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(gamma.shape()),
+                errors::InvalidArgument("gamma is not a scalar: ",
+                                        gamma.shape().DebugString()));
+    // OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(momentum.shape()),
+    //             errors::InvalidArgument("momentum is not a scalar: ",
+    //                                     momentum.shape().DebugString()));
+    OP_REQUIRES(ctx, TensorShapeUtils::IsScalar(epsilon.shape()),
+                errors::InvalidArgument("epsilon is not a scalar: ",
+                                        epsilon.shape().DebugString()));
+
+    OP_REQUIRES(ctx, var.shape().IsSameSize(mu.shape()),
+                errors::InvalidArgument("var and mu do not have the same shape",
+                                        var.shape().DebugString(), " ",
+                                        mu.shape().DebugString()));
+
+    OP_REQUIRES(ctx, var.shape().IsSameSize(mom.shape()),
+                errors::InvalidArgument(
+                    "var and mom do not have the same shape",
+                    var.shape().DebugString(), " ", mom.shape().DebugString()));
+
+    OP_REQUIRES(ctx, TensorShapeUtils::IsVectorOrHigher(var.shape()),
+                errors::InvalidArgument("var must be at least 1 dimensional"));
+
+    OP_REQUIRES(ctx, TensorShapeUtils::IsVector(indices.shape()),
+                errors::InvalidArgument("indices must be one-dimensional"));
+
+    for (int d = 1; d < var.dims(); d++) {
+      OP_REQUIRES(
+          ctx, var.dim_size(d) == grad.dim_size(d),
+          errors::InvalidArgument("var and grad must match in dimension ", d));
+    }
+    const Tindex N = indices.dim_size(0);
+    OP_REQUIRES(
+        ctx, grad.dim_size(0) == N,
+        errors::InvalidArgument(
+            "grad must be the same size as indices in the first dimension."));
+
+    if (N > 0) {
+      const Tindex first_dim_size = var.dim_size(0);
+      // Validate all the indices are in range
+      auto indices_vec = indices.vec<Tindex>();
+      for (Tindex i = 0; i < N; i++) {
+        const Tindex index = indices_vec(i);
+        OP_REQUIRES(ctx, index >= 0 && index < first_dim_size,
+                    errors::InvalidArgument(
+                        strings::StrCat("Index ", index, " at offset ", i,
+                                        " in indices is out of range")));
+      }
+
+      auto var_flat = var.flat_outer_dims<T>();
+      auto mu_flat = mu.flat_outer_dims<T>();
+      auto mom_flat = mom.flat_outer_dims<T>();
+      auto grad_flat = grad.flat_outer_dims<T>();
+      const T lr_scalar = lr.scalar<T>()();
+      const T gamma_scalar = gamma.scalar<T>()();
+    //   const T rho_scalar = rho.scalar<T>()();
+      const T epsilon_scalar = epsilon.scalar<T>()();
+    //   const T momentum_scalar = momentum.scalar<T>()();
+
+      for (Tindex i = 0; i < N; i++) {
+        const Tindex index = indices_vec(i);
+
+        auto mu_ = mu_flat.template chip<0>(index);
+        auto mom_ = mom_flat.template chip<0>(index);
+        auto grad_ = grad_flat.template chip<0>(i);
+
+        // ms_ = ms_ * ms_.constant(rho_scalar) +
+        //       grad_.square() * grad_.constant(T(1) - rho_scalar);
+        mu_ = (mu_ * mu_.constant(gamma_scalar)) + 
+                grad_ * grad_.constant(T(1) - gamma_scalar) ;
+
+        // mom_ = mom_ * mom_.constant(momentum_scalar) +
+        //        (ms_ + ms_.constant(epsilon_scalar)).rsqrt() *
+        //            ms_.constant(lr_scalar) * grad_;
+        mom_ = mom_.constant(gamma_scalar) * 
+            (mom_ + mom_.constant(T(1) - gamma_scalar) ) * ((grad_ - mu_).square()) ;
+            // gamma() * ( mom + (static_cast<T>(1) - gamma()) * ((grad - mu).square())) ;
+
+        auto v = var_flat.template chip<0>(index);
+        // v -= mom_;
+        v -= ms_.constant(lr_scalar) * grad_ / 
+            ((mom_ + ms_.constant(epsilon_scalar)).rsqrt() ;
+            //  lr() * grad / ((mom + epsilon()).sqrt()) ;
+      }
+    }
+
+    MaybeForwardRefInputToRefOutput(ctx, 0, 0);
+  }
+
+ private:
+  bool use_exclusive_lock_;
+};
+
+#define REGISTER_KERNELS(T, Tindices)                                 \
+  REGISTER_KERNEL_BUILDER(Name("SparseApplySDProp")                  \
+                              .Device(DEVICE_CPU)                     \
+                              .TypeConstraint<T>("T")                 \
+                              .TypeConstraint<Tindices>("Tindices"),  \
+                          SparseApplySDPropOp<T, Tindices>);         \
+  REGISTER_KERNEL_BUILDER(Name("ResourceSparseApplySDProp")          \
+                              .Device(DEVICE_CPU)                     \
+                              .TypeConstraint<T>("T")                 \
+                              .TypeConstraint<Tindices>("Tindices"),  \
+                          SparseApplySDPropOp<T, Tindices>);
+
+REGISTER_KERNELS(Eigen::half, int32);
+REGISTER_KERNELS(Eigen::half, int64);
+REGISTER_KERNELS(float, int32);
+REGISTER_KERNELS(float, int64);
+REGISTER_KERNELS(double, int32);
+REGISTER_KERNELS(double, int64);
+
 #undef REGISTER_KERNELS
 
 }  // namespace tensorflow

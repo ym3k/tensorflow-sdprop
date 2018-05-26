@@ -1796,6 +1796,7 @@ use_locking: If `True`, updating of the var, mg, ms, and mom tensors is
   contention.
 )doc");
 
+//////////////// SDProp //////////////////// 
 static Status ApplySDPropShapeFn(InferenceContext* c, bool sparse) {
   ShapeHandle unused;
   ShapeHandle s = ShapeOrHandleShape(c, 0);                       // var
@@ -1815,11 +1816,10 @@ static Status ApplySDPropShapeFn(InferenceContext* c, bool sparse) {
 
 REGISTER_OP("ApplySDProp")
     .Input("var: Ref(T)")
-    .Input("ms: Ref(T)")
+    .Input("mu: Ref(T)")
     .Input("mom: Ref(T)")
     .Input("lr: T")
-    .Input("rho: T")
-    .Input("momentum: T")
+    .Input("gamma: T")
     .Input("epsilon: T")
     .Input("grad: T")
     .Output("out: Ref(T)")
@@ -1829,24 +1829,26 @@ REGISTER_OP("ApplySDProp")
       return ApplySDPropShapeFn(c, false /* sparse */);
     })
     .Doc(R"doc(
-Update '*var' according to the SDProp algorithm (dummuy).
-Note that in dense implementation of this algorithm, ms and mom will
-update even if the grad is zero, but in this sparse implementation, ms
+Update '*var' according to the SDProp algorithm.
+Note that in dense implementation of this algorithm, mu and mom will
+update even if the grad is zero, but in this sparse implementation, mu
 and mom will not update in iterations during which the grad is zero.
 
-mean_square = decay * mean_square + (1-decay) * gradient ** 2
-Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+moving_average = decay * moving_average + (1-decay) * gradient
+moving_variance = decay * moving_variance + 
+                   decay * (1-decay) * (gradient - moving_average) ** 2
+Delta = learning_rate * gradient / sqrt(moving_variance-epsilon)
 
-ms <- rho * ms_{t-1} + (1-rho) * grad * grad
-mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
-var <- var - mom
+mu <- gamma * mu_{t-1} + (1-gamma) * grad
+mom <- gamma * mom_{t-1} + gamma * (1-gamma) * (grad - mu)**2
+var <- var - lr * grad / sqrt(mom + epsilon)
 
 var: Should be from a Variable().
-ms: Should be from a Variable().
+mu: Should be from a Variable().
 mom: Should be from a Variable().
 lr: Scaling factor. Must be a scalar.
 epsilon: Ridge term. Must be a scalar.
-rho: Decay rate. Must be a scalar.
+gamma: Decay rate. Must be a scalar.
 grad: The gradient.
 out: Same as "var".
 use_locking: If `True`, updating of the var, ms, and mom tensors is protected
@@ -1856,11 +1858,10 @@ use_locking: If `True`, updating of the var, ms, and mom tensors is protected
 
 REGISTER_OP("SparseApplySDProp")
     .Input("var: Ref(T)")
-    .Input("ms: Ref(T)")
+    .Input("mu: Ref(T)")
     .Input("mom: Ref(T)")
     .Input("lr: T")
-    .Input("rho: T")
-    .Input("momentum: T")
+    .Input("gamma: T")
     .Input("epsilon: T")
     .Input("grad: T")
     .Input("indices: Tindices")
@@ -1872,26 +1873,29 @@ REGISTER_OP("SparseApplySDProp")
       return ApplySDPropShapeFn(c, true /* sparse */);
     })
     .Doc(R"doc(
-Update '*var' according to the SDProp algorithm (dummy).
-Note that in dense implementation of this algorithm, ms and mom will
-update even if the grad is zero, but in this sparse implementation, ms
+Update '*var' according to the SDProp algorithm.
+Note that in dense implementation of this algorithm, mu and mom will
+update even if the grad is zero, but in this sparse implementation, mu
 and mom will not update in iterations during which the grad is zero.
 
-mean_square = decay * mean_square + (1-decay) * gradient ** 2
-Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+moving_average = decay * moving_average + (1-decay) * gradient
+moving_variance = decay * moving_variance + 
+                   decay * (1-decay) * (gradient - moving_average) ** 2
+Delta = learning_rate * gradient / sqrt(moving_variance-epsilon)
 
-ms <- rho * ms_{t-1} + (1-rho) * grad * grad
-mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
-var <- var - mom
+mu <- gamma * mu_{t-1} + (1-gamma) * grad
+mom <- gamma * mom_{t-1} + gamma * (1-gamma) * (grad - mu)**2
+var <- var - lr * grad / sqrt(mom + epsilon)
+
 
 var: Should be from a Variable().
-ms: Should be from a Variable().
+mu: Should be from a Variable().
 mom: Should be from a Variable().
 lr: Scaling factor. Must be a scalar.
 epsilon: Ridge term. Must be a scalar.
-rho: Decay rate. Must be a scalar.
+gamma: Decay rate. Must be a scalar.
 grad: The gradient.
-indices: A vector of indices into the first dimension of var, ms and mom.
+indices: A vector of indices into the first dimension of var, mu and mom.
 out: Same as "var".
 use_locking: If `True`, updating of the var, ms, and mom tensors is protected
   by a lock; otherwise the behavior is undefined, but may exhibit less
@@ -1900,11 +1904,10 @@ use_locking: If `True`, updating of the var, ms, and mom tensors is protected
 
 REGISTER_OP("ResourceApplySDProp")
     .Input("var: resource")
-    .Input("ms: resource")
+    .Input("mu: resource")
     .Input("mom: resource")
     .Input("lr: T")
-    .Input("rho: T")
-    .Input("momentum: T")
+    .Input("gamma: T")
     .Input("epsilon: T")
     .Input("grad: T")
     .Attr("T: numbertype")
@@ -1913,24 +1916,26 @@ REGISTER_OP("ResourceApplySDProp")
       return ApplySDPropShapeFn(c, false /* sparse */);
     })
     .Doc(R"doc(
-Update '*var' according to the SDProp algorithm (dummy).
-Note that in dense implementation of this algorithm, ms and mom will
-update even if the grad is zero, but in this sparse implementation, ms
+Update '*var' according to the SDProp algorithm.
+Note that in dense implementation of this algorithm, mu and mom will
+update even if the grad is zero, but in this sparse implementation, mu
 and mom will not update in iterations during which the grad is zero.
 
-mean_square = decay * mean_square + (1-decay) * gradient ** 2
-Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+moving_average = decay * moving_average + (1-decay) * gradient
+moving_variance = decay * moving_variance + 
+                   decay * (1-decay) * (gradient - moving_average) ** 2
+Delta = learning_rate * gradient / sqrt(moving_variance-epsilon)
 
-ms <- rho * ms_{t-1} + (1-rho) * grad * grad
-mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
-var <- var - mom
+mu <- gamma * mu_{t-1} + (1-gamma) * grad
+mom <- gamma * mom_{t-1} + gamma * (1-gamma) * (grad - mu)**2
+var <- var - lr * grad / sqrt(mom + epsilon)
 
 var: Should be from a Variable().
-ms: Should be from a Variable().
+mu: Should be from a Variable().
 mom: Should be from a Variable().
 lr: Scaling factor. Must be a scalar.
 epsilon: Ridge term. Must be a scalar.
-rho: Decay rate. Must be a scalar.
+gamma: Decay rate. Must be a scalar.
 grad: The gradient.
 use_locking: If `True`, updating of the var, ms, and mom tensors is protected
   by a lock; otherwise the behavior is undefined, but may exhibit less
@@ -1939,11 +1944,10 @@ use_locking: If `True`, updating of the var, ms, and mom tensors is protected
 
 REGISTER_OP("ResourceSparseApplySDProp")
     .Input("var: resource")
-    .Input("ms: resource")
+    .Input("mu: resource")
     .Input("mom: resource")
     .Input("lr: T")
-    .Input("rho: T")
-    .Input("momentum: T")
+    .Input("gamma: T")
     .Input("epsilon: T")
     .Input("grad: T")
     .Input("indices: Tindices")
@@ -1954,24 +1958,26 @@ REGISTER_OP("ResourceSparseApplySDProp")
       return ApplySDPropShapeFn(c, true /* sparse */);
     })
     .Doc(R"doc(
-Update '*var' according to the SDProp algorithm (dummy).
-Note that in dense implementation of this algorithm, ms and mom will
-update even if the grad is zero, but in this sparse implementation, ms
+Update '*var' according to the SDProp algorithm.
+Note that in dense implementation of this algorithm, mu and mom will
+update even if the grad is zero, but in this sparse implementation, mu
 and mom will not update in iterations during which the grad is zero.
 
-mean_square = decay * mean_square + (1-decay) * gradient ** 2
-Delta = learning_rate * gradient / sqrt(mean_square + epsilon)
+moving_average = decay * moving_average + (1-decay) * gradient
+moving_variance = decay * moving_variance + 
+                   decay * (1-decay) * (gradient - moving_average) ** 2
+Delta = learning_rate * gradient / sqrt(moving_variance-epsilon)
 
-ms <- rho * ms_{t-1} + (1-rho) * grad * grad
-mom <- momentum * mom_{t-1} + lr * grad / sqrt(ms + epsilon)
-var <- var - mom
+mu <- gamma * mu_{t-1} + (1-gamma) * grad
+mom <- gamma * mom_{t-1} + gamma * (1-gamma) * (grad - mu)**2
+var <- var - lr * grad / sqrt(mom + epsilon)
 
 var: Should be from a Variable().
-ms: Should be from a Variable().
+mu: Should be from a Variable().
 mom: Should be from a Variable().
 lr: Scaling factor. Must be a scalar.
 epsilon: Ridge term. Must be a scalar.
-rho: Decay rate. Must be a scalar.
+gamma: Decay rate. Must be a scalar.
 grad: The gradient.
 indices: A vector of indices into the first dimension of var, ms and mom.
 use_locking: If `True`, updating of the var, ms, and mom tensors is protected

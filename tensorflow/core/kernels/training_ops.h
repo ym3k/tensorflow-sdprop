@@ -165,10 +165,11 @@ struct ApplyCenteredRMSProp {
 template <typename Device, typename T>
 struct ApplySDProp {
   void operator()(const Device& d, typename TTypes<T>::Flat var,
-                  typename TTypes<T>::Flat ms, typename TTypes<T>::Flat mom,
+                  typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,
                   typename TTypes<T>::ConstScalar lr,
-                  typename TTypes<T>::ConstScalar rho,
-                  typename TTypes<T>::ConstScalar momentum,
+                  typename TTypes<T>::ConstScalar gamma,
+                  // typename TTypes<T>::ConstScalar rho,
+                  // typename TTypes<T>::ConstScalar momentum,
                   typename TTypes<T>::ConstScalar epsilon,
                   typename TTypes<T>::ConstFlat grad);
 };

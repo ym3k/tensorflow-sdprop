@@ -238,26 +238,27 @@ static void SDProp(int32 n, Graph** init_g, Graph** train_g) {
   {
     Graph* g = new Graph(OpRegistry::Global());
     auto var = Var(g, n);
-    auto ms = Var(g, n);
+    auto mu = Var(g, n);
     auto mom = Var(g, n);
     auto zero = Zeros(g, n);
     test::graph::Assign(g, var, zero);
-    test::graph::Assign(g, ms, zero);
+    test::graph::Assign(g, mu, zero);
     test::graph::Assign(g, mom, zero);
     *init_g = g;
   }
   {
     Graph* g = new Graph(OpRegistry::Global());
     auto var = Var(g, n);
-    auto ms = Var(g, n);
+    auto mu = Var(g, n);
     auto mom = Var(g, n);
-    auto lr = Scalar(g, 0.01);
-    auto rho = Scalar(g, 0.9);
-    auto momentum = Scalar(g, 0.9);
+    auto lr = Scalar(g, 0.001);
+    auto gamma = Scalar(g, 0.99);
+    // auto rho = Scalar(g, 0.9);
+    // auto momentum = Scalar(g, 0.9);
     auto epsilon = Scalar(g, 1e-8);
     auto grad = Random(g, n);
     test::graph::Multi(g, "ApplySDProp",
-                       {var, ms, mom, lr, rho, momentum, epsilon, grad});
+                       {var, mu, mom, lr, gamma, epsilon, grad});
     *train_g = g;
   }
 }
