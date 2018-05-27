@@ -337,7 +337,7 @@ TEST(TrainingOpsTest, ApplySDProp_ShapeFn) {
 
   // Output is a merge of inputs 0, 1, 2, and 6 (var, mu, mom, and grad).
   INFER_OK(op, "[1,?,?,?];[?,2,?,?];[?,?,3,?];[];[];[];[?,?,?,4]",
-           "[d0_0,d1_1,d2_2,d7_3]");
+           "[d0_0,d1_1,d2_2,d6_3]");
   INFER_ERROR("Dimension 0 in both shapes must be equal, but are 1 and 2", op,
               "[1];[2];[1];[];[];[];[1]");
   INFER_ERROR("Dimension 0 in both shapes must be equal, but are 1 and 2", op,
@@ -357,7 +357,7 @@ TEST(TrainingOpsTest, SparseApplySDProp_ShapeFn) {
   // Output is a merge of inputs 0, 1, 2, and the non-indices part of 6 (var,
   // mu, mom, and grad).
   INFER_OK(op, "[1,?,?,?];[?,2,?,?];[?,?,3,?];[];[];[];[?,?,?,4];?",
-           "[d0_0,d1_1,d2_2,d7_3]");
+           "[d0_0,d1_1,d2_2,d6_3]");
   INFER_ERROR("Dimension 0 in both shapes must be equal, but are 1 and 2", op,
               "[1];[2];[1];[];[];[];[1];?");
   INFER_ERROR("Dimension 0 in both shapes must be equal, but are 1 and 2", op,

@@ -1800,14 +1800,13 @@ use_locking: If `True`, updating of the var, mg, ms, and mom tensors is
 static Status ApplySDPropShapeFn(InferenceContext* c, bool sparse) {
   ShapeHandle unused;
   ShapeHandle s = ShapeOrHandleShape(c, 0);                       // var
-  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));  // ms
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));  // mu
   TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 2), &s));  // mom
   TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));       // lr
-  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));       // rho
-  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));       // momentum
-  TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 0, &unused));       // epsilon
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));       // gamma
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));       // epsilon
   TF_RETURN_IF_ERROR(
-      HandleGradAndIndicesInputs(c, sparse, 7 /* grad_idx */, &s));
+      HandleGradAndIndicesInputs(c, sparse, 6 /* grad_idx */, &s));
   if (c->num_outputs() > 0) {
     c->set_output(0, s);
   }

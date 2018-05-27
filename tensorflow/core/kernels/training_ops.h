@@ -168,8 +168,6 @@ struct ApplySDProp {
                   typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,
                   typename TTypes<T>::ConstScalar lr,
                   typename TTypes<T>::ConstScalar gamma,
-                  // typename TTypes<T>::ConstScalar rho,
-                  // typename TTypes<T>::ConstScalar momentum,
                   typename TTypes<T>::ConstScalar epsilon,
                   typename TTypes<T>::ConstFlat grad);
 };

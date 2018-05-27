@@ -368,7 +368,6 @@ struct ApplySDProp<CPUDevice, T> {
                   typename TTypes<T>::Flat mu, typename TTypes<T>::Flat mom,
                   typename TTypes<T>::ConstScalar lr,
                   typename TTypes<T>::ConstScalar gamma,
-                  //typename TTypes<T>::ConstScalar momentum,
                   typename TTypes<T>::ConstScalar epsilon,
                   typename TTypes<T>::ConstFlat grad) {
     mu.device(d) = (gamma() * mu) + (static_cast<T>(1) - gamma()) * grad;
@@ -3520,8 +3519,8 @@ class SparseApplySDPropOp : public OpKernel {
 
         auto v = var_flat.template chip<0>(index);
         // v -= mom_;
-        v -= ms_.constant(lr_scalar) * grad_ / 
-            ((mom_ + ms_.constant(epsilon_scalar)).rsqrt() ;
+        v -= mu_.constant(lr_scalar) * grad_ / 
+            ((mom_ + mu_.constant(epsilon_scalar)).rsqrt()) ;
             //  lr() * grad / ((mom + epsilon()).sqrt()) ;
       }
     }
