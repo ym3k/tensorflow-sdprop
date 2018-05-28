@@ -88,12 +88,15 @@ class SDPropOptimizer(optimizer.Optimizer):
 
   def _create_slots(self, var_list):
     for v in var_list:
-      init_sd = init_ops.ones_initializer(dtype=v.dtype)
-      init_mom = init_ops.ones_initializer(dtype=v.dtype)
-      self._get_or_make_slot_with_initializer(v, init_sd, v.get_shape(),
-                                              v.dtype, "sd", self._name)
-      self._get_or_make_slot_with_initializer(v, init_mom, v.get_shape(),
-                                              v.dtype, "mom", self._name)
+      # init_sd = init_ops.ones_initializer(dtype=v.dtype)
+      # init_mom = init_ops.ones_initializer(dtype=v.dtype)
+      # self._get_or_make_slot_with_initializer(v, init_sd, v.get_shape(),
+      #                                         v.dtype, "sd", self._name)
+      # self._get_or_make_slot_with_initializer(v, init_mom, v.get_shape(),
+      #                                         v.dtype, "mom", self._name)
+      self._zeros_slot(v, "sd", self._name)
+      self._zeros_slot(v, "mom", self._name)
+
       # if self._centered:
       #   self._zeros_slot(v, "mg", self._name)
       # self._zeros_slot(v, "momentum", self._name)
