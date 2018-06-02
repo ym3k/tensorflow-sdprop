@@ -90,6 +90,8 @@ See the @{$python/train} guide.
 @@load_variable
 @@list_variables
 @@init_from_checkpoint
+@@AdastandOptimizer
+@@SDPropOptimizer
 """
 
 # Optimizers.
@@ -121,6 +123,8 @@ from tensorflow.python.training.rmsprop import RMSPropOptimizer
 from tensorflow.python.training.gradient_descent import GradientDescentOptimizer
 from tensorflow.python.training.proximal_gradient_descent import ProximalGradientDescentOptimizer
 from tensorflow.python.training.sync_replicas_optimizer import SyncReplicasOptimizer
+from tensorflow.python.training.adastand import AdastandOptimizer
+from tensorflow.python.training.sdprop import SDPropOptimizer
 
 # Utility classes for training.
 from tensorflow.python.training.coordinator import Coordinator

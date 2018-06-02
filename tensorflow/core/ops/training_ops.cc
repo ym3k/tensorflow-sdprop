@@ -1,3 +1,4 @@
+
 /* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -1391,6 +1392,200 @@ use_locking: If `True`, updating of the var, m, and v tensors will be protected
   by a lock; otherwise the behavior is undefined, but may exhibit less
   contention.
 use_nesterov: If `True`, uses the nesterov update.
+)doc");
+
+
+static Status ApplyAdastandShapeFn(InferenceContext* c, bool sparse) {
+  ShapeHandle unused;
+  ShapeHandle s = ShapeOrHandleShape(c, 0);                               // var
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));          // m
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 2), &s));          // v
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));  // beta1_power
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));  // beta2_power
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));  // lr
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 0, &unused));  // beta1
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(7), 0, &unused));  // beta2
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(8), 0, &unused));  // epsilon
+  TF_RETURN_IF_ERROR(
+      HandleGradAndIndicesInputs(c, sparse, 9 /* grad_idx */, &s));
+  if (c->num_outputs() > 0) {
+    c->set_output(0, s);
+  }
+  return Status::OK();
+}
+
+REGISTER_OP("ApplyAdastand")
+    .Input("var: Ref(T)")
+    .Input("m: Ref(T)")
+    .Input("v: Ref(T)")
+    .Input("beta1_power: T")
+    .Input("beta2_power: T")
+    .Input("lr: T")
+    .Input("beta1: T")
+    .Input("beta2: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Output("out: Ref(T)")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .Attr("use_nesterov: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplyAdastandShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the Adastand algorithm.
+
+lr_t <- learning_rate * sqrt(1 - beta2^t) / (1 - beta1^t)
+m_t <- beta1 * m_{t-1} + (1 - beta1) * (g_t - m_{t-1})
+v_t <- beta2 * v_{t-1} + beta2 * (1 - beta2) * (g_t - m_{t-1}) * (g_t - m_{t-1})
+variable <- variable - lr_t * m_t / (sqrt(v_t) + epsilon)
+
+var: Should be from a Variable().
+m: Should be from a Variable().
+v: Should be from a Variable().
+beta1_power: Must be a scalar.
+beta2_power: Must be a scalar.
+lr: Scaling factor. Must be a scalar.
+beta1: Momentum factor. Must be a scalar.
+beta2: Momentum factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+grad: The gradient.
+out: Same as "var".
+use_locking: If `True`, updating of the var, m, and v tensors will be protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+use_nesterov: If `True`, uses the nesterov update.
+)doc");
+
+REGISTER_OP("ResourceApplyAdastand")
+    .Input("var: resource")
+    .Input("m: resource")
+    .Input("v: resource")
+    .Input("beta1_power: T")
+    .Input("beta2_power: T")
+    .Input("lr: T")
+    .Input("beta1: T")
+    .Input("beta2: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .Attr("use_nesterov: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplyAdastandShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the Adastand algorithm.
+
+lr_t <- learning_rate * sqrt(1 - beta2^t) / (1 - beta1^t)
+m_t <- beta1 * m_{t-1} + (1 - beta1) * (g_t - m_{t-1})
+v_t <- beta2 * v_{t-1} + beta2 * (1 - beta2) * (g_t - m_{t-1}) * (g_t - m_{t-1})
+variable <- variable - lr_t * m_t / (sqrt(v_t) + epsilon)
+
+var: Should be from a Variable().
+m: Should be from a Variable().
+v: Should be from a Variable().
+beta1_power: Must be a scalar.
+beta2_power: Must be a scalar.
+lr: Scaling factor. Must be a scalar.
+beta1: Momentum factor. Must be a scalar.
+beta2: Momentum factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+grad: The gradient.
+use_locking: If `True`, updating of the var, m, and v tensors will be protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+use_nesterov: If `True`, uses the nesterov update.
+)doc");
+
+
+static Status ApplySDPropShapeFn(InferenceContext* c, bool sparse) {
+  ShapeHandle unused;
+  ShapeHandle s = ShapeOrHandleShape(c, 0);                               // var
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 1), &s));          // m
+  TF_RETURN_IF_ERROR(c->Merge(s, ShapeOrHandleShape(c, 2), &s));          // v
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 0, &unused));  // gamma_power
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 0, &unused));  // lr
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 0, &unused));  // gamma
+  TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 0, &unused));  // epsilon
+  TF_RETURN_IF_ERROR(
+      HandleGradAndIndicesInputs(c, sparse, 7 /* grad_idx */, &s));
+  if (c->num_outputs() > 0) {
+    c->set_output(0, s);
+  }
+  return Status::OK();
+}
+
+REGISTER_OP("ApplySDProp")
+    .Input("var: Ref(T)")
+    .Input("m: Ref(T)")
+    .Input("v: Ref(T)")
+    .Input("gamma_power: T")
+    .Input("lr: T")
+    .Input("gamma: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Output("out: Ref(T)")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm.
+
+lr_t <- rho * sqrt(1 - gamma^t)
+m_t <- gamma * m_{t-1} + (1 - gamma) * g_t
+v_t <- gamma * v_{t-1} + gamma * (1 - gamma) * (g_t - m_{t-1}) * (g_t - m_{t-1})
+variable <- variable - rho_t * g_t / (sqrt(v_t) + epsilon)
+
+var: Should be from a Variable().
+m: Should be from a Variable().
+v: Should be from a Variable().
+gamma_power: Must be a scalar.
+lr: Scaling factor. Must be a scalar.
+gamma: Momentum factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+grad: The gradient.
+out: Same as "var".
+use_locking: If `True`, updating of the var, m, and v tensors will be protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
+)doc");
+
+REGISTER_OP("ResourceApplySDProp")
+    .Input("var: resource")
+    .Input("m: resource")
+    .Input("v: resource")
+    .Input("gamma_power: T")
+    .Input("lr: T")
+    .Input("gamma: T")
+    .Input("epsilon: T")
+    .Input("grad: T")
+    .Attr("T: numbertype")
+    .Attr("use_locking: bool = false")
+    .SetShapeFn([](InferenceContext* c) {
+      return ApplySDPropShapeFn(c, false /* sparse */);
+    })
+    .Doc(R"doc(
+Update '*var' according to the SDProp algorithm.
+
+lr_t <- rho * sqrt(1 - gamma^t)
+m_t <- gamma * m_{t-1} + (1 - gamma) * g_t
+v_t <- gamma * v_{t-1} + gamma * (1 - gamma) * (g_t - m_{t-1}) * (g_t - m_{t-1})
+variable <- variable - rho_t * g_t / (sqrt(v_t) + epsilon)
+
+var: Should be from a Variable().
+m: Should be from a Variable().
+v: Should be from a Variable().
+gamma_power: Must be a scalar.
+lr: Scaling factor. Must be a scalar.
+gamma: Momentum factor. Must be a scalar.
+epsilon: Ridge term. Must be a scalar.
+grad: The gradient.
+use_locking: If `True`, updating of the var, m, and v tensors will be protected
+  by a lock; otherwise the behavior is undefined, but may exhibit less
+  contention.
 )doc");
 
 static Status ApplyRMSPropShapeFn(InferenceContext* c, bool sparse) {

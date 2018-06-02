@@ -1,3 +1,5 @@
+# coding: UTF-8
+
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,6 +46,8 @@ OPTIMIZER_CLS_NAMES = {
     "Momentum": train.MomentumOptimizer,
     "RMSProp": train.RMSPropOptimizer,
     "SGD": train.GradientDescentOptimizer,
+    "Adastand": train.AdastandOptimizer,
+    "SDProp": train.SDPropOptimizer,
 }
 
 OPTIMIZER_SUMMARIES = [
@@ -74,7 +78,7 @@ def optimize_loss(loss,
   Various ways of passing optimizers include:
 
   - by string specifying the name of the optimizer. See OPTIMIZER_CLS_NAMES
-      for full list. E.g. `optimize_loss(..., optimizer='Adam')`.
+      for full list. E.g. `optimize_loss(..., optimizer='Adam', optimizer='Adastand', optimizer='SDProp')`.
   - by function taking learning rate `Tensor` as argument and returning an
       `Optimizer` instance. E.g. `optimize_loss(...,
       optimizer=lambda lr: tf.train.MomentumOptimizer(lr, momentum=0.5))`.
@@ -83,7 +87,7 @@ def optimize_loss(loss,
       optimizer=lambda: tf.train.MomentumOptimizer(0.5, momentum=0.5))`.
   - by a subclass of `Optimizer` having a single-argument constructor
       (the argument is the learning rate), such as AdamOptimizer or
-      AdagradOptimizer. E.g. `optimize_loss(...,
+      AdastandOptimizer, AdagradOptimizer, SDPropOptimizer. E.g. `optimize_loss(...,
       optimizer=tf.train.AdagradOptimizer)`.
   - by an instance of a subclass of `Optimizer`.
       E.g., `optimize_loss(..., optimizer=tf.train.AdagradOptimizer(0.5))`.
@@ -100,7 +104,7 @@ def optimize_loss(loss,
                    step. Can be `None`.
     optimizer: string, class or optimizer instance, used as trainer.
                string should be name of optimizer, like 'SGD',
-                 'Adam', 'Adagrad'. Full list in OPTIMIZER_CLS_NAMES constant.
+                 'Adam', 'Adastand','Adagrad','SDProp'. Full list in OPTIMIZER_CLS_NAMES constant.
                class should be sub-class of `tf.Optimizer` that implements
                  `compute_gradients` and `apply_gradients` functions.
                optimizer instance should be instantiation of `tf.Optimizer`
